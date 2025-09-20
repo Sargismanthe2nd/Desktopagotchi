@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link rel="stylesheet" href="magic.css">
+  <link rel="icon" href="C:/Users/HP P6000/Desktop/Desktopagotchi/Mokke.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="widget-strip"></div>
+  <script>
+let pets = [];
+const PET_WIDTH = 120;
+const PET_HEIGHT = 100;
+const PET_LIFESPAN = 30000; // 10 seconds
+
+function createPet(left = 0, top = 0) {
+  // Create container
+  const container = document.createElement('div');
+  container.className = 'pet-btn-container';
+  container.style.position = 'absolute';
+  container.style.width = PET_WIDTH + 'px';
+  container.style.height = PET_HEIGHT + 'px';
+  container.style.left = left + 'px';
+  container.style.top = top + 'px';
+  container.style.transition = 'left 0.25s linear, top 0.25s linear';
+
+  // Create button and image
+  const btn = document.createElement('button');
+  btn.className = 'pet-btn';
+  btn.style.position = 'static';
+  btn.style.background = 'transparent';
+  btn.style.border = 'none';
+  btn.style.padding = '0';
+  btn.style.cursor = 'pointer';
+
+  const img = document.createElement('img');
+  img.src = 'dancing.gif';
+  img.alt = 'pet';
+  img.className = 'pet';
+  img.style.height = PET_HEIGHT + 'px';
+  img.style.width = PET_WIDTH + 'px';
+
+  btn.appendChild(img);
+  container.appendChild(btn);
+  document.body.appendChild(container);
+
+  // Each pet has its own direction and position
+  const pet = {
+    container,
+    btn,
+    img,
+    left,
+    top,
+    dx: Math.random() < 0.5 ? 1 : -1,
+    dy: Math.random() < 0.5 ? 1 : -1,
+    speed: 60 + Math.random() * 80, // initial speed (pixels per move)
+    lastMove: Date.now(),
+    born: Date.now(),
+    directionFrames: 0 // new property to control direction change
+  };
+  pets.push(pet);
+
+  // Lifespan timer
+  setTimeout(() => {
+    container.remove();
+    pets = pets.filter(p => p !== pet);
+
+    // If no pets left, close the app
+    if (pets.length === 0) {
+      window.close();
+    }
+  }, PET_LIFESPAN);
+}
+
+function movePets() {
+  const maxLeft = window.innerWidth - PET_WIDTH;
+  const maxTop = window.innerHeight - PET_HEIGHT;
+
+  pets.forEach(pet => {
+    // Randomize speed and direction each move
+    pet.speed = 4 + Math.random() * 6; // smaller steps for smoothness
+    if (pet.directionFrames <= 0) {
+      pet.dx = [-1, 0, 1][Math.floor(Math.random() * 3)];
+      pet.dy = [-1, 0, 1][Math.floor(Math.random() * 3)];
+      if (pet.dx === 0 && pet.dy === 0) {
+        if (Math.random() < 0.5) {
+          pet.dx = Math.random() < 0.5 ? 1 : -1;
+        } else {
+          pet.dy = Math.random() < 0.5 ? 1 : -1;
+        }
+      }
+      pet.directionFrames = 10 + Math.floor(Math.random() * 20); // keep direction for 10-30 frames
+    } else {
+      pet.directionFrames--;
+    }
+
+    // Move
+    pet.left += pet.dx * pet.speed;
+    pet.top += pet.dy * pet.speed;
+
+    // Wall collision
+    let hitWall = false;
+    if (pet.left <= 0) {
+      pet.left = 0;
+      pet.dx = 1; // force away from wall
+      hitWall = true;
+    } else if (pet.left >= maxLeft) {
+      pet.left = maxLeft;
+      pet.dx = -1; // force away from wall
+      hitWall = true;
+    }
+    if (pet.top <= 0) {
+      pet.top = 0;
+      pet.dy = 1; // force away from wall
+      hitWall = true;
+    } else if (pet.top >= maxTop) {
+      pet.top = maxTop;
+      pet.dy = -1; // force away from wall
+      hitWall = true;
+    }
+
+    // Flip image
+    pet.img.style.transform = pet.dx < 0 ? "scaleX(-1)" : "scaleX(1)";
+
+    // Move container
+    pet.container.style.left = pet.left + "px";
+    pet.container.style.top = pet.top + "px";
+
+    // Add new pet if hit wall (10% chance)
+    if (hitWall && Math.random() < 0.1) {
+      createPet(pet.left, pet.top);
+    }
+  });
+}
+
+function checkForMerges() {
+  const MERGE_RADIUS = 60; // pixels
+  const MERGE_COUNT = 5;
+  const MERGE_TIME = 500; // ms
+
+  // Track which pets are close together
+  let groups = [];
+
+  // Find groups of pets within MERGE_RADIUS
+  pets.forEach((pet, i) => {
+    let group = [pet];
+    for (let j = 0; j < pets.length; j++) {
+      if (i === j) continue;
+      const other = pets[j];
+      const dx = pet.left - other.left;
+      const dy = pet.top - other.top;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < MERGE_RADIUS) {
+        group.push(other);
+      }
+    }
+    // Only add unique groups of sufficient size
+    if (group.length >= MERGE_COUNT) {
+      // Check if this group is already tracked
+      let alreadyTracked = groups.some(g => g.some(p => group.includes(p)));
+      if (!alreadyTracked) groups.push(group);
+    }
+  });
+
+  // For each group, track how long they've been together
+  groups.forEach(group => {
+    group.forEach(pet => {
+      pet._mergeStart = pet._mergeStart || Date.now();
+    });
+    // If all pets in group have been together for MERGE_TIME, merge them
+    const togetherLongEnough = group.every(pet => Date.now() - (pet._mergeStart || Date.now()) > MERGE_TIME);
+    if (togetherLongEnough) {
+      // Remove all but one pet
+      const mainPet = group[0];
+      group.slice(1).forEach(pet => {
+        pet.container.remove();
+        pets = pets.filter(p => p !== pet);
+      });
+      // Make the main pet bigger
+      mainPet.container.style.width = (PET_WIDTH * 1.5) + "px";
+      mainPet.container.style.height = (PET_HEIGHT * 1.5) + "px";
+      mainPet.img.style.width = (PET_WIDTH * 1.5) + "px";
+      mainPet.img.style.height = (PET_HEIGHT * 1.5) + "px";
+      // Reset merge timers
+      group.forEach(pet => delete pet._mergeStart);
+    }
+  });
+
+  // Reset merge timers for pets not in a group
+  pets.forEach(pet => {
+    if (!groups.some(group => group.includes(pet))) {
+      delete pet._mergeStart;
+    }
+  });
+}
+
+// Initial pet
+createPet(100, 100);
+setInterval(() => {
+  movePets();
+  checkForMerges();
+}, 40); // smoother, more frequent updates
+setInterval(checkForMerges, 100);
+</script>
+</body>
+</html>

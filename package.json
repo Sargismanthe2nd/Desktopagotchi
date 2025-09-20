@@ -1,0 +1,34 @@
+{
+  "name": "Desktopagotchi",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.yourdomain.desktopagotchi",
+    "files": [
+      "main.js",
+      "pet.html",
+      "magic.css",
+      "dancing.gif",
+      "Mokke.ico",
+      "package.json"
+    ],
+    "win": {
+      "icon": "Mokke.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
+  }
+}
